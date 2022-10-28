@@ -10,7 +10,7 @@ mod leaderboard;
 use leaderboard::Leaderboard;
 
 #[group]
-#[required_permissions("ADMINISTRATOR")]
+#[required_permissions("MANAGE_ROLES")]
 #[commands(ping, create_leaderboard_post, add_win, remove_win, add_podium, remove_podium, refresh_leaderboard)]
 struct General;
 
