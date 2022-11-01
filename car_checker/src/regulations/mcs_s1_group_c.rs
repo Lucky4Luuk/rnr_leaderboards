@@ -39,7 +39,7 @@ impl MCS_S1_Group_C {
             return Err(String::from("Trim assist techpool must be 5!"));
         }
         if !car_data.get_usize("Trim Body Techpool")? == 6 {
-            return Err(String::from("Trim body techpool must be 5!"));
+            return Err(String::from("Trim body techpool must be 6!"));
         }
         if !car_data.get_usize("Trim Chassis Techpool")? == 7 {
             return Err(String::from("Trim chassis techpool must be 7!"));
@@ -130,7 +130,7 @@ impl MCS_S1_Group_C {
         if car_data.get("Active Aero")? != "None" {
             return Err(String::from("Active aero is not allowed!"));
         }
-        if car_data.get("Gearbox Type")?.contains("Adv") {
+        if car_data.get("Gearbox Type")?.contains("Adv") || car_data.get("Gearbox Type")?.contains("Auto Manual") {
             return Err(String::from("Only manual and automatic transmissions allowed!"));
         }
         if car_data.get("Differential Type")? != "Geared LSD" {

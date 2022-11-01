@@ -16,7 +16,7 @@ use leaderboard::Leaderboard;
 struct General;
 
 #[group]
-#[commands(submit_group_c)]
+#[commands(submit_group_c, submit_gt1)]
 struct Open;
 
 struct Handler;

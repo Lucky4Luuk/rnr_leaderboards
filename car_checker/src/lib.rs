@@ -58,6 +58,15 @@ impl CarData {
         println!("Total cost: {}", total_cost);
         Ok(total_cost)
     }
+
+    pub fn contains_part(&self, part_name: &str) -> bool {
+        for (key, value) in &self.0 {
+            if value == part_name || value.contains(part_name) {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 impl std::ops::Deref for CarData {
