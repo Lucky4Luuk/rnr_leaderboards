@@ -293,3 +293,74 @@ async fn submit_group_c(ctx: &Context, msg: &Message) -> CommandResult {
 
     Ok(())
 }
+
+#[command]
+async fn submit_gt1(ctx: &Context, msg: &Message) -> CommandResult {
+    if msg.attachments.len() != 1 {
+        msg.reply(ctx, "Attach 1 file! No more, no less. If your zip submission is too big, get in contact with <@183315569745985545> for now.").await?;
+        return Ok(());
+    }
+
+    if let Ok(zip_bytes) = msg.attachments[0].download().await {
+        let mut zip_name = format!("csv/{}", msg.attachments[0].filename.clone());
+        zip_name.pop();
+        zip_name.pop();
+        zip_name.pop();
+        zip_name.pop();
+        let mut zip_reader = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes.clone()))?;
+        zip_reader.extract(&zip_name)?;
+        msg.reply(ctx, "Zip file extracted!").await?;
+
+        // Find CSV file
+        let mut csv_path = None;
+        'search: for entry in std::fs::read_dir(&zip_name)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                // CSV file might be in this folder
+                for entry in std::fs::read_dir(path)? {
+                    let entry = entry?;
+                    let path = entry.path();
+                    if path.extension().map(|os_str| os_str.to_str().unwrap_or("")) == Some("csv") {
+                        println!("Located csv file!");
+                        csv_path = Some(path);
+                        break 'search;
+                    }
+                }
+            } else {
+                // CSV file is directly in ZIP file
+                if path.extension().map(|os_str| os_str.to_str().unwrap_or("WAH")) == Some("csv") {
+                    println!("Located csv file!");
+                    csv_path = Some(path);
+                    break 'search;
+                }
+            }
+        }
+        if csv_path.is_none() {
+            msg.reply(ctx, "Failed to find CSV file in your zip! Did you send the right zip file?").await?;
+        }
+
+        let csv_path = csv_path.unwrap();
+        if let Ok(car_data) = car_checker::from_utf16_file(csv_path.to_str().unwrap_or("WAH")) {
+            let result = car_checker::regulations::mcs_s1_gt1::MCS_S1_GT1::default().check(car_data);
+            match result {
+                Ok(_) => {
+                    if let Err(_) = std::fs::write(format!("registered/gt1/{}", msg.attachments[0].filename.clone()), zip_bytes) {
+                        msg.reply(ctx, "Seems like your car is good to go! Something went wrong while registering however. Please ping any of the EMs for this series").await?;
+                    } else {
+                        msg.reply(ctx, "Seems like your car is good to go! Registered it for the next event, feel free to send in new versions whenever you want!").await?;
+                    }
+                },
+                Err(e) => { msg.reply(ctx, format!("Your car seems to break the regulations. For now, I can only show you the first issue encountered, which is `{}`\nThis version has not been saved for the event.", e)).await?; }
+            };
+        } else {
+            msg.reply(ctx, "Something went wrong with loading the file!").await?;
+        }
+
+        std::fs::remove_dir_all(&zip_name)?;
+    } else {
+        msg.reply(ctx, "Error encountered while downloading file!").await?;
+    }
+
+    Ok(())
+}
