@@ -12,8 +12,12 @@ use leaderboard::Leaderboard;
 
 #[group]
 #[required_permissions("MANAGE_ROLES")]
-#[commands(ping, create_leaderboard_post, add_win, remove_win, add_podium, remove_podium, refresh_leaderboard, submit_group_c)]
+#[commands(ping, create_leaderboard_post, add_win, remove_win, add_podium, remove_podium, refresh_leaderboard)]
 struct General;
+
+#[group]
+#[commands(submit_group_c)]
+struct Open;
 
 struct Handler;
 
@@ -44,7 +48,8 @@ async fn main() {
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("!")) // set the bot's prefix to "!"
         .on_dispatch_error(dispatch_error)
-        .group(&GENERAL_GROUP);
+        .group(&GENERAL_GROUP)
+        .group(&OPEN_GROUP);
 
     // Login with a bot token from the environment
     let token = include_str!("../token.txt").trim();
