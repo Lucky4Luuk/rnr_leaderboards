@@ -14,9 +14,9 @@ pub fn from_utf16_file(path: &str) -> Result<CarData> {
 
 pub fn from_utf8_string(utf8: String) -> Result<CarData> {
     let mut rdr = csv::Reader::from_reader(utf8.as_bytes());
-    let mut iter = rdr.deserialize();
+    let iter = rdr.deserialize();
     let mut data: HashMap<String, String> = HashMap::new();
-    if let Some(record) = iter.next() {
+    if let Some(record) = iter.last() {
         data = record?;
     }
     Ok(CarData(data))
