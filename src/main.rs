@@ -11,7 +11,7 @@ use leaderboard::Leaderboard;
 
 #[group]
 #[required_permissions("MANAGE_ROLES")]
-#[commands(ping, create_leaderboard_post, add_win, remove_win, add_podium, remove_podium, refresh_leaderboard)]
+#[commands(ping, create_leaderboard_post, add_win, remove_win, add_podium, remove_podium, refresh_leaderboard, submit_group_c)]
 struct General;
 
 struct Handler;
@@ -214,5 +214,44 @@ async fn refresh_leaderboard(ctx: &Context, _msg: &Message) -> CommandResult {
     let content = leaderboard.get_formatted(&ctx.http).await;
     lb_msg.edit(ctx, |m| m.content(content)).await?;
     println!("Message edited!");
+    Ok(())
+}
+
+#[command]
+async fn submit_group_c(ctx: &Context, msg: &Message) -> CommandResult {
+    if msg.attachments.len() != 1 {
+        msg.reply(ctx, "Attach 1 file! No more, no less. If your zip submission is too big, get in contact with <@183315569745985545> for now.").await?;
+        return Ok(());
+    }
+
+    if let Ok(zip_bytes) = msg.attachments[0].download().await {
+        let mut zip_name = format!("csv/{}", msg.attachments[0].filename.clone());
+        zip_name.pop();
+        zip_name.pop();
+        zip_name.pop();
+        zip_name.pop();
+        let mut zip_reader = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes))?;
+        zip_reader.extract(&zip_name)?;
+        msg.reply(ctx, "Zip file extracted!").await?;
+
+        // Find CSV file
+        for entry in std::fs::read_dir(&zip_name)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                // CSV file is in this folder
+            } else {
+                // CSV file is directly in ZIP file
+                if path.extension().map(|os_str| os_str.to_str().unwrap_or("")) == Some("csv") {
+                    println!("Located csv file!");
+                }
+            }
+        }
+
+        std::fs::remove_dir_all(&zip_name)?;
+    } else {
+        msg.reply(ctx, "Error encountered while downloading file!").await?;
+    }
+
     Ok(())
 }
