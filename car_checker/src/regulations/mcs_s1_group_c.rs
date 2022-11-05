@@ -163,7 +163,7 @@ impl MCS_S1_Group_C {
         if car_data.get("Muffler 1")? == "None" || car_data.get("Muffler 2")? == "None" {
             return Err(String::from("Mufflers cannot be None!"));
         }
-        if car_data.get("Aspiration")? != "None" {
+        if car_data.get("Aspiration")? != "None" && !car_data.get("Aspiration")?.contains("Natural")  {
             // Car has a turbo
             if car_data.get_f32("Variant Aspiration Quality")? as isize != 0 {
                 return Err(String::from("Turbo quality must be 0!"));
