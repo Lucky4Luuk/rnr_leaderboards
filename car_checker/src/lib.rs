@@ -60,7 +60,7 @@ impl CarData {
     }
 
     pub fn contains_part(&self, part_name: &str) -> bool {
-        for (key, value) in &self.0 {
+        for (_key, value) in &self.0 {
             if value == part_name || value.contains(part_name) {
                 return true;
             }

@@ -133,7 +133,7 @@ impl MCS_S1_GT1 {
             if car_data.get_f32("Family Displacement")? > 1.7 || car_data.get_f32("Variant Displacement")? > 1.7 {
                 return Err(String::from("Displacement cannot be more than 1.7L!"));
             }
-            if car_data.get_f32("Peak Boost")? > 1.86 {
+            if car_data.get_f32("Peak Boost")? > 2.06 {
                 return Err(String::from("Peak boost cannot be more than 2.06 bar!"));
             }
             if car_data.get_f32("Compressor Size 1")? > 90.0 {
