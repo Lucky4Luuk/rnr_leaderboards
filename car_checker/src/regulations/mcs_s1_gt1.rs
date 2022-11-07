@@ -130,7 +130,7 @@ impl MCS_S1_GT1 {
             if car_data.get_f32("Variant Aspiration Quality")? as isize != 0 {
                 return Err(String::from("Turbo quality must be 0!"));
             }
-            if car_data.get_f32("Family Displacement")? > 1.7 || car_data.get_f32("Variant Displacement")? > 1.7 {
+            if (car_data.get_f32("Family Displacement")? * 1000.0).floor() > 1700.0 || (car_data.get_f32("Variant Displacement")? * 1000.0).floor() > 1700.0 {
                 return Err(String::from("Displacement cannot be more than 1.7L!"));
             }
             if car_data.get_f32("Peak Boost")? > 2.06 {
