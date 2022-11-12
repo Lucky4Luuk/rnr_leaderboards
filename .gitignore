@@ -4,3 +4,4 @@ leaderboard.json
 *.csv
 *.zip
 registered/*
+csv/*

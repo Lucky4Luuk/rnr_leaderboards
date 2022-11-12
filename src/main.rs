@@ -1,3 +1,4 @@
+use std::io::Read;
 use car_checker::regulations::Regulations;
 use std::collections::HashMap;
 use serenity::async_trait;
@@ -12,7 +13,7 @@ use leaderboard::Leaderboard;
 
 #[group]
 #[required_permissions("MANAGE_ROLES")]
-#[commands(ping, create_leaderboard_post, add_win, remove_win, add_podium, remove_podium, refresh_leaderboard)]
+#[commands(ping, create_leaderboard_post, add_win, remove_win, add_podium, remove_podium, refresh_leaderboard, finalize_group_c, finalize_gt1, dump_changes_group_c, dump_changes_gt1)]
 struct General;
 
 #[group]
@@ -224,6 +225,238 @@ async fn refresh_leaderboard(ctx: &Context, _msg: &Message) -> CommandResult {
 }
 
 #[command]
+async fn finalize_group_c(ctx: &Context, msg: &Message) -> CommandResult {
+    std::fs::rename("registered/group_c", "registered/group_c_prev")?;
+    std::fs::create_dir("registered/group_c")?;
+    msg.reply(ctx, "Submissions finalized!").await?;
+    Ok(())
+}
+
+#[command]
+async fn finalize_gt1(ctx: &Context, msg: &Message) -> CommandResult {
+    std::fs::rename("registered/gt1", "registered/gt1_prev")?;
+    std::fs::create_dir("registered/gt1")?;
+    msg.reply(ctx, "Submissions finalized!").await?;
+    Ok(())
+}
+
+#[command]
+async fn dump_changes_group_c(ctx: &Context, msg: &Message) -> CommandResult {
+    if std::path::Path::new("registered/group_c_prev").exists() == false {
+        msg.reply(ctx, "There have not been previous group c submissions!").await?;
+    } else {
+        let mut skipped_cars = Vec::new();
+        for entry in std::fs::read_dir("registered/group_c_prev")? {
+            let entry = entry?;
+            let path = entry.path();
+            if !path.is_dir() && path.extension().map(|os_str| os_str.to_str().unwrap_or("AUGH")) == Some("zip") {
+                // Found a zip file
+                // Extracting the old car
+                let mut file = std::fs::File::open(path.clone())?;
+                let mut zip_bytes = Vec::new();
+                file.read_to_end(&mut zip_bytes)?;
+                let mut zip_reader = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes.clone()))?;
+                zip_reader.extract("csv/tmp_old")?;
+
+                let car_name = path.file_name().map(|s| s.to_str().unwrap_or("AUGH")).unwrap_or("AUGH");
+
+                // Check if new car exists
+                if std::path::Path::new(&format!("registered/group_c/{}", car_name)).exists() == false {
+                    skipped_cars.push(car_name.to_string());
+                    continue;
+                }
+
+                // Extracting the new car
+                let mut file = std::fs::File::open(&format!("registered/group_c/{}", car_name))?;
+                let mut zip_bytes = Vec::new();
+                file.read_to_end(&mut zip_bytes)?;
+                let mut zip_reader = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes.clone()))?;
+                zip_reader.extract("csv/tmp")?;
+
+                // Find CSV files
+                let mut csv_path_old = None;
+                'search_old: for entry in std::fs::read_dir("csv/tmp_old")? {
+                    let entry = entry?;
+                    let path = entry.path();
+                    if path.is_dir() {
+                        // CSV file might be in this folder
+                        for entry in std::fs::read_dir(path)? {
+                            let entry = entry?;
+                            let path = entry.path();
+                            if path.extension().map(|os_str| os_str.to_str().unwrap_or("")) == Some("csv") {
+                                println!("Located csv file!");
+                                csv_path_old = Some(path);
+                                break 'search_old;
+                            }
+                        }
+                    } else {
+                        // CSV file is directly in ZIP file
+                        if path.extension().map(|os_str| os_str.to_str().unwrap_or("WAH")) == Some("csv") {
+                            println!("Located csv file!");
+                            csv_path_old = Some(path);
+                            break 'search_old;
+                        }
+                    }
+                }
+                let csv_path_old = csv_path_old.ok_or(std::fmt::Error)?;
+
+                let mut csv_path = None;
+                'search: for entry in std::fs::read_dir("csv/tmp")? {
+                    let entry = entry?;
+                    let path = entry.path();
+                    if path.is_dir() {
+                        // CSV file might be in this folder
+                        for entry in std::fs::read_dir(path)? {
+                            let entry = entry?;
+                            let path = entry.path();
+                            if path.extension().map(|os_str| os_str.to_str().unwrap_or("")) == Some("csv") {
+                                println!("Located csv file!");
+                                csv_path = Some(path);
+                                break 'search;
+                            }
+                        }
+                    } else {
+                        // CSV file is directly in ZIP file
+                        if path.extension().map(|os_str| os_str.to_str().unwrap_or("WAH")) == Some("csv") {
+                            println!("Located csv file!");
+                            csv_path = Some(path);
+                            break 'search;
+                        }
+                    }
+                }
+                let csv_path = csv_path.ok_or(std::fmt::Error)?;
+
+                // Compare CSV files
+                let mut changes = HashMap::new();
+                if let Ok(car_data_old) = car_checker::from_utf16_file(csv_path_old.to_str().unwrap_or("AUGH")) {
+                    if let Ok(car_data) = car_checker::from_utf16_file(csv_path.to_str().unwrap_or("AUGH")) {
+                        for (key, old_value) in car_data_old.iter() {
+                            let new_value = &car_data[key];
+                            if old_value != new_value {
+                                changes.insert(key.clone(), (old_value.clone(), new_value.clone()));
+                            }
+                        }
+                    }
+                }
+
+                std::fs::write(format!("registered/group_c/changes_{}.txt", car_name), format!("{:#?}", changes))?;
+            }
+        }
+        msg.reply(ctx, &format!("Skipped cars (aka no new/working version submitted):\n{}", skipped_cars.join("\n"))).await?;
+    }
+
+    Ok(())
+}
+
+#[command]
+async fn dump_changes_gt1(ctx: &Context, msg: &Message) -> CommandResult {
+    if std::path::Path::new("registered/gt1_prev").exists() == false {
+        msg.reply(ctx, "There have not been previous gt1 submissions!").await?;
+    } else {
+        let mut skipped_cars = Vec::new();
+        for entry in std::fs::read_dir("registered/gt1_prev")? {
+            let entry = entry?;
+            let path = entry.path();
+            if !path.is_dir() && path.extension().map(|os_str| os_str.to_str().unwrap_or("AUGH")) == Some("zip") {
+                // Found a zip file
+                // Extracting the old car
+                let mut file = std::fs::File::open(path.clone())?;
+                let mut zip_bytes = Vec::new();
+                file.read_to_end(&mut zip_bytes)?;
+                let mut zip_reader = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes.clone()))?;
+                zip_reader.extract("csv/tmp_old")?;
+
+                let car_name = path.file_name().map(|s| s.to_str().unwrap_or("AUGH")).unwrap_or("AUGH");
+
+                // Check if new car exists
+                if std::path::Path::new(&format!("registered/gt1/{}", car_name)).exists() == false {
+                    skipped_cars.push(car_name.to_string());
+                    continue;
+                }
+
+                // Extracting the new car
+                let mut file = std::fs::File::open(&format!("registered/gt1/{}", car_name))?;
+                let mut zip_bytes = Vec::new();
+                file.read_to_end(&mut zip_bytes)?;
+                let mut zip_reader = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes.clone()))?;
+                zip_reader.extract("csv/tmp")?;
+
+                // Find CSV files
+                let mut csv_path_old = None;
+                'search_old: for entry in std::fs::read_dir("csv/tmp_old")? {
+                    let entry = entry?;
+                    let path = entry.path();
+                    if path.is_dir() {
+                        // CSV file might be in this folder
+                        for entry in std::fs::read_dir(path)? {
+                            let entry = entry?;
+                            let path = entry.path();
+                            if path.extension().map(|os_str| os_str.to_str().unwrap_or("")) == Some("csv") {
+                                println!("Located csv file!");
+                                csv_path_old = Some(path);
+                                break 'search_old;
+                            }
+                        }
+                    } else {
+                        // CSV file is directly in ZIP file
+                        if path.extension().map(|os_str| os_str.to_str().unwrap_or("WAH")) == Some("csv") {
+                            println!("Located csv file!");
+                            csv_path_old = Some(path);
+                            break 'search_old;
+                        }
+                    }
+                }
+                let csv_path_old = csv_path_old.ok_or(std::fmt::Error)?;
+
+                let mut csv_path = None;
+                'search: for entry in std::fs::read_dir("csv/tmp")? {
+                    let entry = entry?;
+                    let path = entry.path();
+                    if path.is_dir() {
+                        // CSV file might be in this folder
+                        for entry in std::fs::read_dir(path)? {
+                            let entry = entry?;
+                            let path = entry.path();
+                            if path.extension().map(|os_str| os_str.to_str().unwrap_or("")) == Some("csv") {
+                                println!("Located csv file!");
+                                csv_path = Some(path);
+                                break 'search;
+                            }
+                        }
+                    } else {
+                        // CSV file is directly in ZIP file
+                        if path.extension().map(|os_str| os_str.to_str().unwrap_or("WAH")) == Some("csv") {
+                            println!("Located csv file!");
+                            csv_path = Some(path);
+                            break 'search;
+                        }
+                    }
+                }
+                let csv_path = csv_path.ok_or(std::fmt::Error)?;
+
+                // Compare CSV files
+                let mut changes = HashMap::new();
+                if let Ok(car_data_old) = car_checker::from_utf16_file(csv_path_old.to_str().unwrap_or("AUGH")) {
+                    if let Ok(car_data) = car_checker::from_utf16_file(csv_path.to_str().unwrap_or("AUGH")) {
+                        for (key, old_value) in car_data_old.iter() {
+                            let new_value = &car_data[key];
+                            if old_value != new_value {
+                                changes.insert(key.clone(), (old_value.clone(), new_value.clone()));
+                            }
+                        }
+                    }
+                }
+
+                std::fs::write(format!("registered/gt1/changes_{}.txt", car_name), format!("{:#?}", changes))?;
+            }
+        }
+        msg.reply(ctx, &format!("Skipped cars (aka no new/working version submitted):\n{}", skipped_cars.join("\n"))).await?;
+    }
+
+    Ok(())
+}
+
+#[command]
 async fn submit_group_c(ctx: &Context, msg: &Message) -> CommandResult {
     if msg.attachments.len() != 1 {
         msg.reply(ctx, "Attach 1 file! No more, no less. If your zip submission is too big, get in contact with <@183315569745985545> for now.").await?;
@@ -274,10 +507,11 @@ async fn submit_group_c(ctx: &Context, msg: &Message) -> CommandResult {
             let result = car_checker::regulations::mcs_s1_group_c::MCS_S1_Group_C::default().check(car_data);
             match result {
                 Ok(_) => {
-                    if let Err(_) = std::fs::write(format!("registered/group_c/{}", msg.attachments[0].filename.clone()), zip_bytes) {
+                    let pathbuf = std::path::Path::new(&format!("registered/group_c/{}", msg.attachments[0].filename)).to_owned();
+                    if let Err(_) = std::fs::write(pathbuf, zip_bytes) {
                         msg.reply(ctx, "Seems like your car is good to go! Something went wrong while registering however. Please ping any of the EMs for this series").await?;
                     } else {
-                        msg.reply(ctx, "Seems like your car is good to go! Registered it for the next event, feel free to send in new versions whenever you want!").await?;
+                        msg.reply(ctx, "Seems like your car is good to go! Registered it for the next event, feel free to send in new versions whenever you want! **Note:** Please keep in mind that part changes are not checked by me. It'll be done manually by the EMs.").await?;
                     }
                 },
                 Err(e) => { msg.reply(ctx, format!("Your car seems to break the regulations. For now, I can only show you the first issue encountered, which is `{}`\nThis version has not been saved for the event.", e)).await?; }
